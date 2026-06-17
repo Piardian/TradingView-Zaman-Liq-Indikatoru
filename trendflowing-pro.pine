@@ -1,0 +1,453 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0
+// © TrendFlowing
+
+//@version=6
+indicator("TrendFlowing Pro", "TF Pro", overlay=true, max_boxes_count=500, max_lines_count=500, max_labels_count=500)
+
+// ═══════════════════════════════════════════════════════════════
+// ⏰ SAAT AYARI (Türkiye Saati — UTC+3, DST yok)
+// ═══════════════════════════════════════════════════════════════
+GRP_TZ  = "⏰ Saat Ayarı"
+i_winter = input.bool(false, "❄️ Kış Saati (Winter Time)", group=GRP_TZ, tooltip="Kış saatinde Londra/NY 1 saat ileri kayar.\nYaz=İşaretsiz | Kış=İşaretli")
+
+// ═══════════════════════════════════════════════════════════════
+// 🌏 ASYA BÖLGESİ  (TR: 02:00 – 10:00)
+// ═══════════════════════════════════════════════════════════════
+GRP_A   = "🌏 Asya Bölgesi"
+i_showA     = input.bool(true,  "Göster",       group=GRP_A)
+i_aBoxBg    = input.color(color.new(#8B8000, 80), "Kutu Rengi", group=GRP_A)
+i_aStartH   = input.int(2,  "Başlangıç Saat (TR)", group=GRP_A, minval=0, maxval=23, inline="a2")
+i_aStartM   = input.int(0,  "Dakika",              group=GRP_A, minval=0, maxval=59, inline="a2")
+i_aEndH     = input.int(10, "Bitiş Saat (TR)",     group=GRP_A, minval=0, maxval=23, inline="a3")
+i_aEndM     = input.int(0,  "Dakika",              group=GRP_A, minval=0, maxval=59, inline="a3")
+
+// ═══════════════════════════════════════════════════════════════
+// 🇬🇧 LONDRA KILLZONE  (TR Yaz: 10:00 – 13:00)
+// ═══════════════════════════════════════════════════════════════
+GRP_L   = "🇬🇧 Londra Killzone"
+i_showL     = input.bool(true,  "Göster",  group=GRP_L)
+i_lBoxBg    = input.color(color.new(#1565C0, 80), "Kutu Rengi", group=GRP_L)
+i_lStartH   = input.int(10, "Başlangıç Saat (TR Yaz)", group=GRP_L, minval=0, maxval=23, inline="l2")
+i_lStartM   = input.int(0,  "Dakika",                  group=GRP_L, minval=0, maxval=59, inline="l2")
+i_lEndH     = input.int(13, "Bitiş Saat (TR Yaz)",     group=GRP_L, minval=0, maxval=23, inline="l3")
+i_lEndM     = input.int(0,  "Dakika",                  group=GRP_L, minval=0, maxval=59, inline="l3")
+
+// ═══════════════════════════════════════════════════════════════
+// 🇺🇸 NEW YORK KILLZONE  (TR Yaz: 15:30 – 18:30)
+// ═══════════════════════════════════════════════════════════════
+GRP_N   = "🇺🇸 New York Killzone"
+i_showN     = input.bool(true,  "Göster",  group=GRP_N)
+i_nBoxBg    = input.color(color.new(#B71C1C, 80), "Kutu Rengi", group=GRP_N)
+i_nStartH   = input.int(15, "Başlangıç Saat (TR Yaz)", group=GRP_N, minval=0, maxval=23, inline="n2")
+i_nStartM   = input.int(30, "Dakika",                  group=GRP_N, minval=0, maxval=59, inline="n2")
+i_nEndH     = input.int(18, "Bitiş Saat (TR Yaz)",     group=GRP_N, minval=0, maxval=23, inline="n3")
+i_nEndM     = input.int(30, "Dakika",                  group=GRP_N, minval=0, maxval=59, inline="n3")
+
+
+// ═══════════════════════════════════════════════════════════════
+// 📅 ÖNCEKİ GÜN (PDH/PDL)
+// ═══════════════════════════════════════════════════════════════
+GRP_PD  = "📅 Önceki Gün PDH/PDL"
+i_showPD    = input.bool(true, "PDH/PDL Göster", group=GRP_PD)
+i_pdCol     = input.color(color.new(#999999, 15), "Çizgi Rengi", group=GRP_PD)
+
+// ═══════════════════════════════════════════════════════════════
+// 📊 4H HIGH/LOW
+// ═══════════════════════════════════════════════════════════════
+GRP_4H  = "📊 4H High/Low"
+i_show4H    = input.bool(true, "4H H/L Göster", group=GRP_4H)
+i_4hHCol    = input.color(color.new(#26A69A, 10), "High", group=GRP_4H, inline="4h1")
+i_4hLCol    = input.color(color.new(#EF5350, 10), "Low",  group=GRP_4H, inline="4h1")
+
+// ═══════════════════════════════════════════════════════════════
+// 📊 1H HIGH/LOW
+// ═══════════════════════════════════════════════════════════════
+GRP_1H  = "📊 1H High/Low"
+i_show1H    = input.bool(true, "1H H/L Göster", group=GRP_1H)
+i_1hHCol    = input.color(color.new(#42A5F5, 10), "High", group=GRP_1H, inline="1h1")
+i_1hLCol    = input.color(color.new(#FF7043, 10), "Low",  group=GRP_1H, inline="1h1")
+
+// ═══════════════════════════════════════════════════════════════
+// 🔄 ÇİFT TEPE / DİP (≥15dk)
+// ═══════════════════════════════════════════════════════════════
+GRP_DT  = "🔄 Çift Tepe/Dip"
+i_showDT    = input.bool(true,  "Göster (≥15dk)", group=GRP_DT)
+i_dtTopCol  = input.color(color.new(#FF1744, 0), "Tepe Rengi",  group=GRP_DT, inline="dt1")
+i_dtBotCol  = input.color(color.new(#00E676, 0), "Dip Rengi",   group=GRP_DT, inline="dt1")
+i_dtLB      = input.int(10, "Pivot Lookback",     group=GRP_DT, minval=3, maxval=50)
+i_dtTol     = input.float(0.15, "Tolerans (%)",   group=GRP_DT, minval=0.01, maxval=2.0, step=0.01)
+i_dtMaxBars = input.int(80, "Maks. Bar Mesafesi",  group=GRP_DT, minval=10,  maxval=500)
+i_dtPullback = input.float(0.15, "Min. Geri Çekilme (%)", group=GRP_DT, minval=0.01, maxval=5.0, step=0.01)
+
+
+// ═══════════════════════════════════════════════════════════════
+// 🔧 YARDIMCI FONKSİYONLAR
+// ═══════════════════════════════════════════════════════════════
+trH   = hour(time,   "Europe/Istanbul")
+trM   = minute(time, "Europe/Istanbul")
+trMins = trH * 60 + trM
+
+// Winter offset (dakika cinsinden — Londra/NY seanları 60dk kayar)
+wo = i_winter ? 60 : 0
+
+// Seans sınırları (dakika cinsinden)
+_aS = i_aStartH * 60 + i_aStartM
+_aE = i_aEndH   * 60 + i_aEndM
+_lS = (i_lStartH * 60 + i_lStartM + wo) % 1440
+_lE = (i_lEndH   * 60 + i_lEndM   + wo) % 1440
+_nS = (i_nStartH * 60 + i_nStartM + wo) % 1440
+_nE = (i_nEndH   * 60 + i_nEndM   + wo) % 1440
+
+f_inRange(_now, _s, _e) =>
+    _s < _e ? (_now >= _s and _now < _e) : (_now >= _s or _now < _e)
+
+inAsia   = f_inRange(trMins, _aS, _aE)
+inLondon = f_inRange(trMins, _lS, _lE)
+inNY     = f_inRange(trMins, _nS, _nE)
+
+// 1H altında mıyız?  (Session kutuları sadece < 1H TF'de gösterilir)
+isBelow1H = timeframe.in_seconds() < 3600
+
+
+// ═══════════════════════════════════════════════════════════════
+// 📦 SESSION KUTULARI + DİKEY ÇİZGİLER + ETİKETLER
+// (Sadece < 1H timeframe'lerde gösterilir)
+// ═══════════════════════════════════════════════════════════════
+
+// ── Asia ──
+var box   aBox = na
+var float aHi  = na
+var float aLo  = na
+
+asiaStart = inAsia and not inAsia[1]
+asiaEnd   = not inAsia and inAsia[1]
+
+if inAsia and isBelow1H
+    if asiaStart
+        aHi := high
+        aLo := low
+        if i_showA
+            aBox := box.new(bar_index, high, bar_index, low, color.new(i_aBoxBg, 100), 0, line.style_solid, extend.none, xloc.bar_index, i_aBoxBg)
+        if i_showA
+            label.new(bar_index, low, "Asia Session", style=label.style_label_up, color=color.new(#000000, 100), textcolor=color.new(#8B8000, 30), size=size.small, yloc=yloc.belowbar)
+    aHi := math.max(aHi, high)
+    aLo := math.min(aLo, low)
+    if i_showA and not na(aBox)
+        box.set_top(aBox, aHi)
+        box.set_bottom(aBox, aLo)
+        box.set_right(aBox, bar_index)
+
+
+// ── London ──
+var box   lBox = na
+var float lHi  = na
+var float lLo  = na
+
+londonStart = inLondon and not inLondon[1]
+londonEnd   = not inLondon and inLondon[1]
+
+if inLondon and isBelow1H
+    if londonStart
+        lHi := high
+        lLo := low
+        if i_showL
+            lBox := box.new(bar_index, high, bar_index, low, color.new(i_lBoxBg, 100), 0, line.style_solid, extend.none, xloc.bar_index, i_lBoxBg)
+        if i_showL
+            label.new(bar_index, low, "London Session", style=label.style_label_up, color=color.new(#000000, 100), textcolor=color.new(#42A5F5, 30), size=size.small, yloc=yloc.belowbar)
+    lHi := math.max(lHi, high)
+    lLo := math.min(lLo, low)
+    if i_showL and not na(lBox)
+        box.set_top(lBox, lHi)
+        box.set_bottom(lBox, lLo)
+        box.set_right(lBox, bar_index)
+
+
+// ── New York ──
+var box   nBox = na
+var float nHi  = na
+var float nLo  = na
+
+nyStart = inNY and not inNY[1]
+nyEnd   = not inNY and inNY[1]
+
+if inNY and isBelow1H
+    if nyStart
+        nHi := high
+        nLo := low
+        if i_showN
+            nBox := box.new(bar_index, high, bar_index, low, color.new(i_nBoxBg, 100), 0, line.style_solid, extend.none, xloc.bar_index, i_nBoxBg)
+        if i_showN
+            label.new(bar_index, low, "New York Session", style=label.style_label_up, color=color.new(#000000, 100), textcolor=color.new(#EF5350, 30), size=size.small, yloc=yloc.belowbar)
+    nHi := math.max(nHi, high)
+    nLo := math.min(nLo, low)
+    if i_showN and not na(nBox)
+        box.set_top(nBox, nHi)
+        box.set_bottom(nBox, nLo)
+        box.set_right(nBox, bar_index)
+
+
+
+// ═══════════════════════════════════════════════════════════════
+// 📅 ÖNCEKİ GÜN HIGH/LOW — KISA KESİK ÇİZGİ
+// ═══════════════════════════════════════════════════════════════
+[pdh, pdl] = request.security(syminfo.tickerid, "D", [high[1], low[1]], lookahead=barmerge.lookahead_on)
+
+var line  pdhLine = na
+var line  pdlLine = na
+var label pdhLbl  = na
+var label pdlLbl  = na
+
+if i_showPD and not na(pdh)
+    if na(pdhLine)
+        pdhLine := line.new(bar_index - 25, pdh, bar_index + 10, pdh, color=i_pdCol, style=line.style_dashed, width=1)
+        pdlLine := line.new(bar_index - 25, pdl, bar_index + 10, pdl, color=i_pdCol, style=line.style_dashed, width=1)
+        pdhLbl  := label.new(bar_index + 11, pdh, "PDH", style=label.style_label_left, color=color.new(#000000, 100), textcolor=i_pdCol, size=size.small)
+        pdlLbl  := label.new(bar_index + 11, pdl, "PDL", style=label.style_label_left, color=color.new(#000000, 100), textcolor=i_pdCol, size=size.small)
+    else
+        line.set_xy1(pdhLine, bar_index - 25, pdh)
+        line.set_xy2(pdhLine, bar_index + 10, pdh)
+        line.set_xy1(pdlLine, bar_index - 25, pdl)
+        line.set_xy2(pdlLine, bar_index + 10, pdl)
+        label.set_xy(pdhLbl, bar_index + 11, pdh)
+        label.set_xy(pdlLbl, bar_index + 11, pdl)
+
+
+// ═══════════════════════════════════════════════════════════════
+// 📊 4H ÖNCEKİ MUM HIGH/LOW — DİNAMİK + İHLAL KONTROLÜ
+// ═══════════════════════════════════════════════════════════════
+[h4h, h4l] = request.security(syminfo.tickerid, "240", [high[1], low[1]], lookahead=barmerge.lookahead_on)
+h4_time     = request.security(syminfo.tickerid, "240", time)
+new4H       = ta.change(h4_time) != 0
+
+var line  h4hLine  = na
+var line  h4lLine  = na
+var label h4hLbl   = na
+var label h4lLbl   = na
+var float h4h_lvl  = na
+var float h4l_lvl  = na
+var bool  h4_active = false
+
+if new4H and i_show4H
+    h4h_lvl  := h4h
+    h4l_lvl  := h4l
+    h4_active := true
+    line.delete(h4hLine)
+    line.delete(h4lLine)
+    label.delete(h4hLbl)
+    label.delete(h4lLbl)
+    h4hLine := na
+    h4lLine := na
+    h4hLbl  := na
+    h4lLbl  := na
+
+if h4_active and i_show4H and not na(h4h_lvl)
+    if close > h4h_lvl or close < h4l_lvl
+        h4_active := false
+        line.delete(h4hLine)
+        line.delete(h4lLine)
+        label.delete(h4hLbl)
+        label.delete(h4lLbl)
+        h4hLine := na
+        h4lLine := na
+        h4hLbl  := na
+        h4lLbl  := na
+
+if h4_active and i_show4H and not na(h4h_lvl)
+    if na(h4hLine)
+        h4hLine := line.new(bar_index - 25, h4h_lvl, bar_index + 10, h4h_lvl, color=i_4hHCol, style=line.style_dashed, width=1)
+        h4lLine := line.new(bar_index - 25, h4l_lvl, bar_index + 10, h4l_lvl, color=i_4hLCol, style=line.style_dashed, width=1)
+        h4hLbl  := label.new(bar_index + 11, h4h_lvl, "4H High", style=label.style_label_left, color=color.new(#000000, 100), textcolor=i_4hHCol, size=size.small)
+        h4lLbl  := label.new(bar_index + 11, h4l_lvl, "4H Low",  style=label.style_label_left, color=color.new(#000000, 100), textcolor=i_4hLCol, size=size.small)
+    else
+        line.set_xy1(h4hLine, bar_index - 25, h4h_lvl)
+        line.set_xy2(h4hLine, bar_index + 10, h4h_lvl)
+        line.set_xy1(h4lLine, bar_index - 25, h4l_lvl)
+        line.set_xy2(h4lLine, bar_index + 10, h4l_lvl)
+        label.set_xy(h4hLbl, bar_index + 11, h4h_lvl)
+        label.set_xy(h4lLbl, bar_index + 11, h4l_lvl)
+
+
+// ═══════════════════════════════════════════════════════════════
+// 📊 1H ÖNCEKİ MUM HIGH/LOW — DİNAMİK + İHLAL KONTROLÜ
+// ═══════════════════════════════════════════════════════════════
+[h1h, h1l] = request.security(syminfo.tickerid, "60", [high[1], low[1]], lookahead=barmerge.lookahead_on)
+h1_time     = request.security(syminfo.tickerid, "60", time)
+new1H       = ta.change(h1_time) != 0
+
+var line  h1hLine  = na
+var line  h1lLine  = na
+var label h1hLbl   = na
+var label h1lLbl   = na
+var float h1h_lvl  = na
+var float h1l_lvl  = na
+var bool  h1_active = false
+
+if new1H and i_show1H
+    h1h_lvl  := h1h
+    h1l_lvl  := h1l
+    h1_active := true
+    line.delete(h1hLine)
+    line.delete(h1lLine)
+    label.delete(h1hLbl)
+    label.delete(h1lLbl)
+    h1hLine := na
+    h1lLine := na
+    h1hLbl  := na
+    h1lLbl  := na
+
+if h1_active and i_show1H and not na(h1h_lvl)
+    if close > h1h_lvl or close < h1l_lvl
+        h1_active := false
+        line.delete(h1hLine)
+        line.delete(h1lLine)
+        label.delete(h1hLbl)
+        label.delete(h1lLbl)
+        h1hLine := na
+        h1lLine := na
+        h1hLbl  := na
+        h1lLbl  := na
+
+if h1_active and i_show1H and not na(h1h_lvl)
+    if na(h1hLine)
+        h1hLine := line.new(bar_index - 25, h1h_lvl, bar_index + 10, h1h_lvl, color=i_1hHCol, style=line.style_dashed, width=1)
+        h1lLine := line.new(bar_index - 25, h1l_lvl, bar_index + 10, h1l_lvl, color=i_1hLCol, style=line.style_dashed, width=1)
+        h1hLbl  := label.new(bar_index + 11, h1h_lvl, "1H High", style=label.style_label_left, color=color.new(#000000, 100), textcolor=i_1hHCol, size=size.small)
+        h1lLbl  := label.new(bar_index + 11, h1l_lvl, "1H Low",  style=label.style_label_left, color=color.new(#000000, 100), textcolor=i_1hLCol, size=size.small)
+    else
+        line.set_xy1(h1hLine, bar_index - 25, h1h_lvl)
+        line.set_xy2(h1hLine, bar_index + 10, h1h_lvl)
+        line.set_xy1(h1lLine, bar_index - 25, h1l_lvl)
+        line.set_xy2(h1lLine, bar_index + 10, h1l_lvl)
+        label.set_xy(h1hLbl, bar_index + 11, h1h_lvl)
+        label.set_xy(h1lLbl, bar_index + 11, h1l_lvl)
+
+
+// ═══════════════════════════════════════════════════════════════
+// 🔄 ÇİFT TEPE / DİP TESPİTİ (≥15dk — Geliştirilmiş Algılama)
+// ═══════════════════════════════════════════════════════════════
+showDT_tf = i_showDT and timeframe.in_seconds() >= 900
+
+pivHi = ta.pivothigh(high, i_dtLB, i_dtLB)
+pivLo = ta.pivotlow(low,   i_dtLB, i_dtLB)
+
+// Birden fazla pivot hafızası — art arda olmayan eşleşmeleri de yakalar
+var float[] pvtHiPrices = array.new_float(0)
+var int[]   pvtHiBars   = array.new_int(0)
+var float[] pvtLoPrices = array.new_float(0)
+var int[]   pvtLoBars   = array.new_int(0)
+
+_maxMem = 5   // Son 5 pivot hatırlanır
+
+// ── Double Top ──
+if not na(pivHi) and showDT_tf
+    curBar = bar_index - i_dtLB
+    _matchIdx = -1
+    _matchPrice = 0.0
+    _matchBar = 0
+
+    _sz = array.size(pvtHiPrices)
+    if _sz > 0
+        for i = _sz - 1 to 0
+            _sP = array.get(pvtHiPrices, i)
+            _sB = array.get(pvtHiBars, i)
+            _btwn = curBar - _sB
+            if _btwn > i_dtLB * 2 and _btwn <= i_dtMaxBars
+                _pctD = math.abs(pivHi - _sP) / _sP * 100
+                if _pctD <= i_dtTol
+                    // Neckline (en düşük) ve seviye kırılma (en yüksek) kontrolü
+                    _nLow    = low[i_dtLB]
+                    _maxHigh = high[i_dtLB]
+                    for j = 1 to math.min(_btwn - 1, 100)
+                        _idx = i_dtLB + j
+                        if _idx < bar_index
+                            if low[_idx] < _nLow
+                                _nLow := low[_idx]
+                            if high[_idx] > _maxHigh
+                                _maxHigh := high[_idx]
+                    _avgT = (pivHi + _sP) / 2.0
+                    _pb   = _avgT - _nLow
+                    // Kontrol 1: Yeterli geri çekilme var mı?
+                    // Kontrol 2: Tepe seviyesi kırılmamış mı? (arada fiyat tepeyi aşmadı mı?)
+                    if _pb > _avgT * (i_dtPullback / 100.0) and _maxHigh <= _avgT * (1.0 + i_dtTol / 100.0)
+                        _matchIdx   := i
+                        _matchPrice := _sP
+                        _matchBar   := _sB
+                        break
+
+    if _matchIdx >= 0
+        _avgP = (pivHi + _matchPrice) / 2.0
+        // Kesikli çizgi: 1. tepeden 2. tepeye yatay
+        line.new(_matchBar, _avgP, curBar, _avgP, color=i_dtTopCol, style=line.style_dashed, width=1)
+        // Etiket — çizgiye bitişik, küçük boyut
+        label.new(curBar, _avgP, "Çift Tepe", style=label.style_label_down, color=color.new(#000000, 100), textcolor=i_dtTopCol, size=size.tiny)
+        array.remove(pvtHiPrices, _matchIdx)
+        array.remove(pvtHiBars, _matchIdx)
+
+    // Mevcut pivotu hafızaya ekle
+    array.push(pvtHiPrices, pivHi)
+    array.push(pvtHiBars, curBar)
+
+    // Eski/fazla kayıtları temizle
+    while array.size(pvtHiPrices) > 0 and (curBar - array.get(pvtHiBars, 0)) > i_dtMaxBars
+        array.shift(pvtHiPrices)
+        array.shift(pvtHiBars)
+    while array.size(pvtHiPrices) > _maxMem
+        array.shift(pvtHiPrices)
+        array.shift(pvtHiBars)
+
+// ── Double Bottom ──
+if not na(pivLo) and showDT_tf
+    curBar2 = bar_index - i_dtLB
+    _matchIdx2 = -1
+    _matchPrice2 = 0.0
+    _matchBar2 = 0
+
+    _sz2 = array.size(pvtLoPrices)
+    if _sz2 > 0
+        for i = _sz2 - 1 to 0
+            _sP2 = array.get(pvtLoPrices, i)
+            _sB2 = array.get(pvtLoBars, i)
+            _btwn2 = curBar2 - _sB2
+            if _btwn2 > i_dtLB * 2 and _btwn2 <= i_dtMaxBars
+                _pctD2 = math.abs(pivLo - _sP2) / _sP2 * 100
+                if _pctD2 <= i_dtTol
+                    // Neckline (en yüksek) ve seviye kırılma (en düşük) kontrolü
+                    _nHigh  = high[i_dtLB]
+                    _minLow = low[i_dtLB]
+                    for j = 1 to math.min(_btwn2 - 1, 100)
+                        _idx2 = i_dtLB + j
+                        if _idx2 < bar_index
+                            if high[_idx2] > _nHigh
+                                _nHigh := high[_idx2]
+                            if low[_idx2] < _minLow
+                                _minLow := low[_idx2]
+                    _avgB = (pivLo + _sP2) / 2.0
+                    _pb2  = _nHigh - _avgB
+                    // Kontrol 1: Yeterli geri çekilme var mı?
+                    // Kontrol 2: Dip seviyesi kırılmamış mı? (arada fiyat dibin altına inmedi mi?)
+                    if _pb2 > _avgB * (i_dtPullback / 100.0) and _minLow >= _avgB * (1.0 - i_dtTol / 100.0)
+                        _matchIdx2   := i
+                        _matchPrice2 := _sP2
+                        _matchBar2   := _sB2
+                        break
+
+    if _matchIdx2 >= 0
+        _avgP2 = (pivLo + _matchPrice2) / 2.0
+        // Kesikli çizgi: 1. dipten 2. dibe yatay
+        line.new(_matchBar2, _avgP2, curBar2, _avgP2, color=i_dtBotCol, style=line.style_dashed, width=1)
+        // Etiket — çizgiye bitişik, küçük boyut
+        label.new(curBar2, _avgP2, "Çift Dip", style=label.style_label_up, color=color.new(#000000, 100), textcolor=i_dtBotCol, size=size.tiny)
+        array.remove(pvtLoPrices, _matchIdx2)
+        array.remove(pvtLoBars, _matchIdx2)
+
+    // Mevcut pivotu hafızaya ekle
+    array.push(pvtLoPrices, pivLo)
+    array.push(pvtLoBars, curBar2)
+
+    // Eski/fazla kayıtları temizle
+    while array.size(pvtLoPrices) > 0 and (curBar2 - array.get(pvtLoBars, 0)) > i_dtMaxBars
+        array.shift(pvtLoPrices)
+        array.shift(pvtLoBars)
+    while array.size(pvtLoPrices) > _maxMem
+        array.shift(pvtLoPrices)
+        array.shift(pvtLoBars)
